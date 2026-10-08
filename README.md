@@ -80,25 +80,91 @@ Fluxes are in mmol gDW⁻¹ h⁻¹, growth rates in h⁻¹.
 | `imodulon_reaction_map.csv` | Which ME-model reactions each iModulon's genes catalyse, and whether they carry flux |
 | `glns_range_<source>.csv` | Lowest and highest possible GLNS flux (and matching GLUN flux) at fixed growth |
 
+### `environment.yml`
+
+Conda environment for the ME-model notebooks. See **Installation** below.
+
 ### `fluxfig/`
 
 A small tool for drawing pathway figures of chosen reactions, coloured by any per-reaction value
 (for example, fold change). See [`fluxfig/README.md`](fluxfig/README.md).
 
-## Requirements
+## Installation
 
-- Python with `pandas`, `numpy`, `scipy`, `matplotlib`, `openpyxl`
-- [`cobrapy`](https://github.com/opencobra/cobrapy) for the M-model notebooks
-- [`COBRAme`](https://github.com/SBRG/cobrame) and [`ECOLIme`](https://github.com/SBRG/ecolime),
-  plus a solver they support (e.g. qMINOS / SoPlex), for the ME-model notebooks.
-  The ME-model is loaded from `ecolime/me_models/iJL1678b.pickle` inside the installed `ecolime` package.
+### 1. Conda environment (ME-model notebooks)
+
+`environment.yml` recreates the environment used for `proteome_constraints.ipynb`, `plots.ipynb`
+and `transcriptomic_constraints.ipynb`: Python 3.6, cobra 0.5.11 and
+[COBRAme](https://github.com/SBRG/cobrame), pinned to the versions the results were made with.
+
+```bash
+conda env create -f environment.yml
+conda activate cobrame_env
+```
+
+### 2. ECOLIme and the *E. coli* ME-model
+
+[ECOLIme](https://github.com/SBRG/ecolime) holds the *E. coli* data and builds the ME-model
+(iJL1678b). Install it as an editable clone, because the notebooks load the built model from
+inside the package folder (`ecolime/me_models/iJL1678b.pickle`).
+
+```bash
+git clone https://github.com/SBRG/ecolime.git
+cd ecolime
+git checkout 1d7116b32f474dd5adbf9c72e67b22654304469d   # v0.0.9, the version used here
+```
+
+One-line fix needed with current `xlrd` (which no longer reads `.xlsx`): in
+`ecolime/corrections.py`, function `correct_reaction_stoichiometries`, change
+
+```python
+df = pd.read_excel(file_name, index_col=0)
+```
+to
+```python
+df = pd.read_excel(file_name, index_col=0, engine='openpyxl')
+```
+
+Then install it and build the model (this writes `iJL1678b.pickle`, and takes a while):
+
+```bash
+pip install -e .
+cd ecolime
+python build_me_model.py
+```
+
+### 3. SoPlex solver
+
+The ME-model is solved with SoPlex 3.1.1 through
+[soplex_cython](https://github.com/SBRG/soplex_cython). SoPlex can't be installed with conda or pip,
+because its source must be downloaded from ZIB under their academic licence.
+
+```bash
+sudo apt-get install libgmp-dev                       # macOS: brew install gmp
+git clone https://github.com/SBRG/soplex_cython.git
+cd soplex_cython
+# download soplex-3.1.1.tgz from https://soplex.zib.de and put it in this folder
+pip install .
+```
+
+Check with `python -c "import soplex"`.
+
+### Other notebooks and tools
+
+- `nitrogen_quality.ipynb` uses the newer cobrapy API (`cobra.flux_analysis.pfba`), so it does
+  **not** run in `cobrame_env`. It was run in a separate Python 3.9 environment with cobra 0.29.1:
+  `conda create -n cobrapy python=3.9 && conda activate cobrapy && pip install cobra==0.29.1 pandas matplotlib scipy jupyter`.
+- `fluxfig/` needs only a recent `cobra`, `numpy`, `matplotlib` and `pandas`.
+
+### What needs the ME-model
 
 `plots.ipynb` loads the ME-model for the stacked proteome figure (protein weights), the ATP sections
-and the heatmaps; the other figures run from the CSVs in `fluxes/`.
+and the heatmaps; the other figures run from the CSVs in `fluxes/`. Solving the model
+(`proteome_constraints.ipynb`) also needs SoPlex.
 
 ## How to reproduce
 
-1. Run `proteome_constraints.ipynb` to solve the ME-model and write `fluxes/`. This is slow:
+1. Set up the environment (see **Installation**) and run `proteome_constraints.ipynb` to solve the ME-model and write `fluxes/`. This is slow:
    one ME-model solve per nitrogen source, per solution type.
 2. Run `plots.ipynb` to make the figures in `figs/`. Create the folder first (`mkdir figs`);
    it is not included in the repository.
