@@ -1,0 +1,4 @@
+figs/
+__pycache__/
+.ipynb_checkpoints/
+plots.backup.ipynb
